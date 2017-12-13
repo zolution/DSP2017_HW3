@@ -15,12 +15,12 @@ Vocab voc;
 char to_insert_map[100005];
 char to_do[100005];
 inline unsigned int toKey(unsigned char a, unsigned char b){
-    return ((unsigned int)a << 8) + b;
+    return ((unsigned int)a * 256) + (unsigned int)b;
 }
 
 inline void toBig5(unsigned int a, unsigned char *goal){
-    goal[0] = a >> 8;
-    goal[1] = a & 255;
+    goal[0] = a / 256;
+    goal[1] = a % 256;
     return;
 }
 
@@ -63,7 +63,8 @@ void Viterbi_init(int n, unsigned int* poss_list){
         b[2] = '\0';
         VocabIndex wid2 = voc.getIndex(b);
         if(wid2 == Vocab_None) wid2 = voc.getIndex(Vocab_Unknown);
-        delta[0][poss_list[i]] = lm->wordProb(wid2, context);
+        delta[0][poss_list[i]] = lm->wordProb(wid2, context); 
+        //delta[0][poss_list[i]] = 0.0;
     }
     return;
 }
@@ -87,21 +88,23 @@ void Viterbi_next(int n, unsigned int* poss_list){
             //VocabIndex tid = voc.getIndex(tch);
 //            if(tid == Vocab_None)
 //                tid = voc.getIndex(Vocab_Unknown);
-            double p = getBigramProb(ch,tch);
+            double p = getBigramProb(tch,ch);
             if(fabs(p)<=1e-9) continue;
             if(p + it->second > maxi){
-                maxi = p + it->second;
+                maxi = it->second + p;
                 maxi_w = it->first;
             }
         
-            if(maxi_w != 0){
-                delta[1][poss_list[i]] = maxi;
-                bt.back()[poss_list[i]] = maxi_w;
-            }
-            else{
-                cerr<<"YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY!!!!!!!!!!!!!"<<endl;
-            }
         }
+        
+        if(maxi_w != 0){
+            delta[1][poss_list[i]] = maxi;
+            bt.back()[poss_list[i]] = maxi_w;
+        }
+        else{
+            cerr<<"YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY!!!!!!!!!!!!!"<<endl;
+        }
+
     }
     delta[0] = delta[1];
     return;
@@ -156,7 +159,17 @@ int main(int argc, char **argv){
         }
         mymap[toKey(to_insert_map[0],to_insert_map[1])] = goal;
     }
-
+/*  {
+    char a[5] = "£¬";
+    unsigned int key = toKey(a[0],a[1]);
+    std::vector<unsigned int> value = mymap[key];
+    for (int i = 0, n = value.size(); i < n; ++i) {
+      char v[3] = { 0 };
+      v[0] = value[i] >> 8;
+      v[1] = value[i];
+      std::cerr << (const char*)v << '\n';
+    }
+  }*/
     //Viterbi
     ifstream input_file(input_filename);
 //    input_file.open(input_filename)
@@ -172,16 +185,16 @@ int main(int argc, char **argv){
             unsigned int Key = toKey(to_do[ptr],to_do[ptr+1]);
             vector<unsigned int>& possible = mymap[Key];
             if(!inited){
-                Viterbi_init(possible.size(), &possible[0]);
+                Viterbi_init(possible.size(), &possible.front());
                 inited = true;
             }
             else{
-                Viterbi_next(possible.size(), &possible[0]);
+                Viterbi_next(possible.size(), &possible.front());
             }
             ptr+=2;
             while(isspace(to_do[ptr]) && ptr<len) ptr++;
         }
-    
+ 
         vector<unsigned int> ans = Viterbi_bt();
 
         //print
@@ -193,7 +206,7 @@ int main(int argc, char **argv){
             toBig5(ans[i],a);
             printf("%c%c ",a[0],a[1]);
         }
-        printf("</s> \n");
+        printf("</s>\n");
     }
     return 0;
 }
